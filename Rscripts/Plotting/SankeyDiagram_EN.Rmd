@@ -1,0 +1,108 @@
+---
+title: "Sankey-Diagram"
+author: "Bert Gollnick"
+date: "01.01.2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "D:/Private_Projects/SmartDataScienceWithR/Tutorials/scripts/R_Plotting/Sankey_Diagram/")
+options(warn=-1)
+```
+
+## Introduction
+
+* Objective: Create a Sankey-diagram
+* Requirements: R-Basics
+
+We will learn to create a Sankey-diagram. With its help proportions and flow can be visualised. The thickness of lines directly represensts quantities. Complex relationships can be shown. More information can be found [here](https://de.wikipedia.org/wiki/Sankey-Diagramm).
+
+Specifically it shows in which German federal state in which period since September 2014 how much new capacities of renewable energy is installed. Besides 16 federal states exclusive economic zone is shown.
+
+Raw data is based on German "Anlagenregister", in which all new renewable capacities are summarised. The data can be downloaded [here](https://www.bundesnetzagentur.de/DE/Sachgebiete/ElektrizitaetundGas/Unternehmen_Institutionen/ErneuerbareEnergien/Anlagenregister/Anlagenregister_Veroeffentlichung/Anlagenregister_Veroeffentlichungen_node.html).
+
+## Getting Data
+
+First we load required packages. I use _pacman_ to load all packages at once. It also checks if a package is installed. If not, it installs and then loads it. 
+
+We need the following packages:
+
+* _rio_ for data import
+* _networkD3_ for Sankey diagram creation
+* _plyr_, _dplyr_ and _tidyr_ for data preparation
+
+We first download the data. Please check on the website if the shown url is still valid or needs an update.
+
+```{r data_download, echo=T}
+library(pacman)
+p_load(plyr, dplyr, tidyr, networkD3, knitr, rio)
+
+url <- "https://www.bundesnetzagentur.de/SharedDocs/Downloads/DE/Sachgebiete/Energie/Unternehmen_Institutionen/ErneuerbareEnergien/Anlagenregister/VOeFF_Anlagenregister/2016_11_Veroeff_AnlReg.xlsx;jsessionid=11D741B48B5F731363EF16D56C95257A?__blob=publicationFile&v=2"
+#download.file(url, destfile = "./Anlagenregister.xlsx", mode = "wb")
+#anlagenregister <- import("./Anlagenregister.xlsx")
+load("./Register.RData")
+```
+
+Now, data needs to be prepared. Some columns are renamed to english.
+```{r data_prep, echo=T}
+# rename colnames
+anlagenregister$energy_source <- anlagenregister$`4.1 Energieträger`
+anlagenregister$federal_state <- anlagenregister$`4.11 Bundesland`
+anlagenregister$rated_power <- anlagenregister$`4.2 Installierte Leistung [kW]`
+```
+
+_ddply_ is applied to summarise data. For each _federal_state_ and _energy_source_ the sum of rated power is calculated. Then, character vectors are casted to factors.
+
+```{r register_ddply, echo=T}
+register_energysource_fedstate <- anlagenregister %>% 
+	filter (Meldegrund == "Inbetriebnahme") %>% 
+	ddply(.(federal_state, energy_source), summarise,
+	      installed_power = sum(rated_power)/1000) %>% 
+	filter (!is.na(federal_state)) %>% 
+	arrange (desc(installed_power))
+
+# characters to factors 
+register_energysource_fedstate$federal_state <- as.factor(register_energysource_fedstate$federal_state)
+register_energysource_fedstate$energy_source <- as.factor(register_energysource_fedstate$energy_source)
+```
+
+At this point we can bring everything in place for creation of Sankey-diagram. We need nodes, sources, targets and values. Nodes include all names used in the diagram. Each source is connected to one or more targets and vice versa. The values indicate the thickness of the connecion.
+
+It is important to make sure that sources and targets are numerics, and start with zero.
+
+First, all node names are extracted and numbered, starting with zero.
+
+```{r prepare_sankey, echo=T}
+# create nodes
+register_energysource_fedstate$name <- register_energysource_fedstate$federal_state
+nodes <- data.frame (name = as.factor(c(unique(as.character(register_energysource_fedstate$federal_state)),
+					unique(as.character(register_energysource_fedstate$energy_source)))))
+
+nodes$number <- 1:nrow(nodes)-1
+```
+
+Sources, targets and values wil be summarised in a dataframe _links_. We will use node-numbers for assigning sources and targets to corresponding numbers. _left_join_ will be used for this purpose. First, name column in _register_energysource_fedstate_ represents _federal_state_. After joining with nodes dataframe 
+
+```{r sankey_links, echo=T}
+# get numbers for Bundesland and Energieträger
+register_energysource_fedstate <- left_join(register_energysource_fedstate, nodes, by = "name")
+colnames(register_energysource_fedstate) <- gsub("number", "source", colnames(register_energysource_fedstate))
+register_energysource_fedstate$name <- register_energysource_fedstate$energy_source
+register_energysource_fedstate <- left_join(register_energysource_fedstate, nodes, by = "name")
+colnames(register_energysource_fedstate) <- gsub("number", "target", fixed = T, colnames(register_energysource_fedstate))
+
+
+# create links	     
+links <- data.frame (source = register_energysource_fedstate$source,
+		     target = register_energysource_fedstate$target,
+		     value = register_energysource_fedstate$installed_power)
+
+sankeyNetwork(Links = links, 
+	      Nodes = nodes, 
+	      Source = "source", 
+	      Target = "target", 
+	      Value = "value", 
+	      NodeID = "name", 
+	      units = "MW", fontSize = 12, nodeWidth = 30, fontFamily = "Arial")
+```

@@ -1,0 +1,121 @@
+---
+title: 'threejs: Plotting a dynamic, interactive globe'
+author: "Bert Gollnick"
+date: "30.01.2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(warn=-1)
+rm(list = ls())
+```
+
+This interactive globe shows installed power for 53 countries with largest wind energy installations. I will show you how to create the globe and add country-specific information.
+
+* Objectives: Learn to create an interactive globe, 
+
+* Requirements: Web-Scraping
+
+## Data Download
+
+We start by loading required packages. We need _rvest_ for web-scraping (downloading a table from the internet and converting it to a dataframe). We use _dplyr_ for data handling.
+
+Wind energy installation data is downloaded from Wikipedia. This tutorial is not on Web-Scraping. Details on this example are explained in tutorial ... .
+
+```{r data_download, echo=FALSE, warning=FALSE, cache=TRUE}
+library("pacman")
+p_load(maptools, rvest, dplyr, threejs)
+
+# get wind installed power data
+url <- "https://en.wikipedia.org/wiki/Wind_power_by_country"
+wind <- html(url) %>% 
+	html_node(xpath =  '//*[@id="mw-content-text"]/table[2]') %>% 
+	html_table()
+wind$`#` <- NULL
+# data preparation
+for (i in 2:ncol(wind)) {
+	wind[, i] <- gsub(",", "", wind[, i])
+	wind[, i] <- gsub("-", 0, wind[, i])
+	wind[, i] <- as.numeric(as.character(wind[, i]))
+}
+wind <- wind %>% 
+	filter(!is.na(`2015`))
+```
+
+## Data Preparation
+
+Some data requires rework. Some country names, like Australia, contain some undesired characters, which we delete. Groups of countries, like European Union, are aggregated. We delete these datasets completely. Finally, wind installations in 2015 (most recent information) are binned with _cut()_.
+
+```{r data, echo=TRUE}
+# correct names
+wind$Nation[wind$Nation == "Australia[23]"] <- "Australia"
+wind$Nation[wind$Nation == "Norway[24][25][26]"] <- "Norway"
+wind$Nation[wind$Nation == "Pakistan[27]"] <- "Pakistan"
+
+# remove pseudo countries
+wind <- wind[-which(wind$Nation == "European Union"), ]
+wind <- wind[-which(wind$Nation == "Rest of Europe"), ]
+wind <- wind[-which(wind$Nation == "Rest of Latin America & Caribbean"), ]
+wind <- wind[-which(wind$Nation == "Rest of Africa & Middle East"), ]
+wind <- wind[-which(wind$Nation == "Rest of Asia"), ]
+wind <- wind[-which(wind$Nation == "World total capacity (MW)"), ]
+
+wind$power_2015 <- as.numeric(cut(wind$`2015`, breaks = c(0, 5000, 10000, 20000, 40000, 150000)))
+```
+
+We start creating the plot. First, we need to load _maptools_ package, because it contains "wrld_simpl". This object has spatial information on countries and borders. A background color is defined and stored in "bgcolor". A jpeg image is prepared with _jpeg()_ and its parameters set with _par()_.
+
+Our color code is defined in "map_palette". In the next step "wind" dataframe is filtered. We need to do a matching, because we only can ink countries, that are included in "wrld_simple".
+
+We create a character vector "clrs". Its length equals the number of countries in "wrld_simple" and its _names()_ are set to country names in "wrld_simple". First, a default color is assigned to all countries. Then, at each country within "wind" dataframe, the corresponding color palette is assigned.
+
+At the last step in this chunk we plot the world map.
+
+```{r create_plot, echo=TRUE}
+library(maptools)
+data("wrld_simpl")  # Basic country shapes
+bgcolor <- "#000025"
+earth <- tempfile(fileext=".jpg")
+jpeg(earth, width=4096, height=2048, quality=100, bg=bgcolor, antialias="default")
+par(mar = c(0,0,0,0),    pin = c(4,2),    pty = "m",    xaxs = "i",
+    xaxt = "n",          xpd = FALSE,    yaxs = "i",    yaxt = "n")
+
+map_palette <- c("#A0A0A0","#00FF00", "#FFFF00", "#FF8000", "#FF0000")
+
+wind <- wind[wind$Nation %in% wrld_simpl$NAME, , drop = F]
+
+# setting colors
+clrs <- rep( "#E0E0E0", length(wrld_simpl$NAME))
+names(clrs) <- wrld_simpl$NAME
+clrs[wind$Nation] <- map_palette[wind$power_2015]
+
+# plot world map
+plot(wrld_simpl,  col=clrs,   bg=bgcolor,        border="black",  ann=FALSE,
+     axes=FALSE,  xpd=FALSE,  xlim=c(-180,180), ylim=c(-90,90),  setParUsrBB=TRUE)
+```
+
+## Create the World
+
+Now we come to the end and load _threejs_ package, which is required to plot the globe. _graphics.off()_ shuts down all open graphics devices. With _globejs()_ function we create the globe by passing our "earth" image path. The background color is set to "white".
+
+```{r globe_plot}
+library(threejs)
+graphics.off()
+globejs(earth,  bg="white")
+```
+
+You can drag the globe and rotate it. The wind energy installations are color coded. 
+
+* <span style="color:#DCDCDC">no information</span>
+* <span style="color:lightblue"> 0-5 MW</span>
+* <span style="color:green"> 5-10 MW</span>
+* <span style="color:yellow"> 10-20 MW</span>
+* <span style="color:orange"> 20-40 MW</span>
+* <span style="color:red"> greater 40 MW</span>
+
+## More Information
+
+* Wind Energy Installations https://en.wikipedia.org/wiki/Wind_power_by_country
+
