@@ -1,0 +1,139 @@
+---
+title: "ggplot Introduction"
+author: "Bert Gollnick"
+date: "29.01.2017"
+output: 
+  html_document:
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+_ggplot2_ is a plotting environment and delivers very appealing graphs, has compact and good-readable code and is easy to learn. It only takes small changes to get complex visualisations. To me it is by far the best plotting environment in R.
+
+## Data Understanding and Preparation
+
+We will use "iris" dataset. It is a multivariate data set, created by Fisher in 1936. It consists of 50 samples of three different Iris species. Measured features are lengths and widths of sepals and petals. Unit is centimeters.
+
+First, we load _ggplot2_ package. Please make sure you have installed it before loading. Data is loaded with _data()_ function. "iris" is part of _datasets_ package, which is preloaded at R startup.
+
+```{r}
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(dplyr))
+data(iris)
+tbl_df (iris)
+```
+
+## ggplot2 Components
+
+Each _ggplot2_ graph has the following components
+
+* **data**: a dataframe is used as input data
+
+* **aes**thetics: define the axes (x, y), color, size, shape, text, fill, ...
+
+* **geom**etry: type of plot (line, bar, histogram)
+
+## Bar Plot
+
+We create the very first plot. It will be a bar plot, showing the count of elements per species. In general a _ggplot_ is built up in steps. First, we assign a new variable "g", which will be loaded with all plot information. We start by calling _ggplot()_ function and pass data (here: "iris"), and the **aes**thetics, which is column "Species". In the second step we define geometry (here: _geom_bar()_). Last, we show the plot by calling variable "g".
+```{r}
+g <- ggplot (data = iris, aes(x = Species))
+g <- g + geom_bar()
+g
+```
+
+As a result we find out, there are three species. Data is balanced: each group has 50 elements.
+
+## Histogram
+
+A histogram shows distribution of one variable. It is applied with _geom_histogram()_.
+
+```{r}
+g <- ggplot (data = iris, aes(x = Sepal.Length))
+g <- g + geom_histogram()
+g
+```
+
+## Point Plot
+
+We continue with a point plot. For this we need an "x"-column and a "y"-column. We use an additional feature and ink points according to their group with "color". If graph is printed in black and white colors might be not distinguishable, so changing the shape of point according to species is necessary. All this is defined in **aes**thetics. 
+
+Since we want to get a point plot, we now define geometry with _geom_point()_. Default size of points is too small, so we change it with "size = 2".
+
+As a bonus a smoothed line is added with _geom_smooth()_. A linear regression line is defined with parameter (method = "lm").
+
+```{r}
+g <- ggplot (iris, aes(x = Sepal.Length, y = Petal.Length, color = Species, shape = Species))
+g <- g + geom_point(size = 2)
+g <- g + geom_smooth(method = "lm")
+g
+```
+
+## Box-Plot
+
+A boxplot is useful to show distribution properties
+```{r}
+g <- ggplot (iris, aes(x = Species, y = Sepal.Length))
+g <- g + geom_boxplot()
+g
+```
+
+
+## Faceting
+
+One of the most impressive features of _ggplot()_ is faceting. Thus for each group different subplots are created. This is achieved with _facet_grid()_. Parameter is ". ~ Species", which means that different species-plots are shown horizontally.
+
+```{r}
+g <- ggplot (iris, aes(x = Sepal.Length, y = Petal.Length))
+g <- g + geom_point()
+g <- g + geom_smooth(method = "lm")
+g <- g + facet_grid(. ~ Species)
+g
+```
+
+## Axes and Scales
+
+Axes labels and scales can be modified. We change the previous plot and add x-label und y-label with _xlab()_ and _ylab()_. Scales are modified with _scale_x_continuous()_.
+
+```{r}
+g <- ggplot (iris, aes(x = Sepal.Length, y = Petal.Length))
+g <- g + geom_point()
+g <- g + geom_smooth(method = "lm")
+g <- g + facet_grid(. ~ Species)
+g <- g + xlab ("Sepal Length [cm]")
+g <- g + ylab ("Petal Length [cm]")
+g <- g + scale_x_continuous(breaks = seq(4, 8, .5))
+g <- g + scale_y_continuous(breaks = seq(0, 7, .5))
+g
+```
+
+## Themes
+
+Themes define the general look of a plot. You can use a pre-defined theme, e.g. with _theme_bw()_. You can also specify each component of theme. Here, "legend.position" is changed from default (right) to bottom.
+```{r}
+g <- ggplot (iris, aes(x = Sepal.Length, y = Petal.Length, color = Species))
+g <- g + geom_point()
+g <- g + theme_bw()
+g <- g + theme(legend.position = "bottom")
+g
+```
+
+## Saving a Plot
+
+A _ggplot_ can be saved with _ggsave()_ function. Many parameter can be defined, e.g. height, width, dpi, or units. File type is implicitely defined within "filename" extension.
+```{r}
+ggsave(filename = "my_first_ggplot.png", plot = g, height = 20, width = 20, units = "cm", dpi = 300)
+```
+
+## More Information 
+
+For a quick overview you can use "Data visualisiation with ggplot2" cheatsheet (RStudio --> Help --> Cheatsheets). 
+
+* Iris Datasets https://en.wikipedia.org/wiki/Iris_flower_data_set
+
